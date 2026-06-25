@@ -17,6 +17,26 @@ services:
       - ./data/sql:/docker-entrypoint-initdb.d
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
+  backend-api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: catering_backend
+    restart: always
+    # 强制等数据库启动后再启动后端
+    depends_on:
+      - mysql-db
+    ports:
+      - "8080:8080"
+    environment:
+      # 用环境变量覆盖掉 .env 中的配置，让后端去连接叫 mysql-db 的数据库容器
+      - DB_HOST=mysql-db
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASS=root
+      - DB_NAME=catering_data
+      - TZ=Asia/Shanghai
+
   crawler:
     image: python:3.9-slim
     container_name: catering_crawler
