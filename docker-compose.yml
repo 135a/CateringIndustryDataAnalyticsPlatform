@@ -64,3 +64,14 @@ services:
       && python ./crawler/dianping_spider.py
       && echo '爬取完成，睡眠 12 小时后进行下一轮...'
       && sleep 43200"
+
+  frontend-web:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: catering_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend-api
