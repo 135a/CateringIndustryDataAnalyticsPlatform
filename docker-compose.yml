@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: catering_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      # 为了防止您不小心删库重建，我们仍然保留本地数据持久化
+      - ./data/mysql_data:/var/lib/mysql
+      # 初次启动自动建库建表
+      - ./data/sql:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  crawler:
+    image: python:3.9-slim
+    container_name: catering_crawler
+    # 如果您希望爬虫跟着 Docker 开机自动运行，请设置为 always。
+    # 设置为 no 时，它只会在您手动执行 docker-compose up 的时候运行一次
+    restart: always
+    depends_on:
+      - mysql-db
+    environment:
+      # 这里配置告诉爬虫，数据库的地址是上面那个名叫 mysql-db 的容器
+      - DB_HOST=mysql-db
+      # 将 Excel 保存路径重定向到容器内部
+      - EXCEL_DIR=/app/data/excel
+      - TZ=Asia/Shanghai
+    volumes:
+      # 把本地的爬虫脚本挂载进去
+      - ./crawler:/app/crawler
+      # 保证爬出来的 Excel 能存到您的宿主机 D:\CateringIndustryDataAnalyticsPlatform\data\excel 下
+      - ./data/excel:/app/data/excel
+    working_dir: /app
+    # 容器启动时：自动安装 Python 依赖 -> 执行爬虫脚本
+    # 爬虫脚本执行完毕后，容器会退出；如果设置了 restart: always，它会在退出后再次自动重启运行，实现自动化抓取
+    command: >
+      bash -c "pip install pandas pymysql openpyxl -i https://pypi.tuna.tsinghua.edu.cn/simple 
+      && python ./crawler/dianping_spider.py
+      && echo '爬取完成，睡眠 12 小时后进行下一轮...'
+      && sleep 43200"
