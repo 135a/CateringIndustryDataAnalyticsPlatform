@@ -33,7 +33,7 @@ func SetupRouter() *gin.Engine {
 		// 获取餐饮分类下拉框
 		apiGroup.GET("/categories", api.GetCategories)
 
-		// ================= 数据可视化统计路由 (服务于大屏 ECharts) =================
+		// ================= 大屏统计图表数据路由 =================
 		statsGroup := apiGroup.Group("/statistics")
 		{
 			statsGroup.GET("/overview", api.Overview)                       // 指标卡
@@ -41,6 +41,7 @@ func SetupRouter() *gin.Engine {
 			statsGroup.GET("/district-bar", api.DistrictBar)                // 柱状图
 			statsGroup.GET("/price-rating-scatter", api.PriceRatingScatter) // 散点图
 			statsGroup.GET("/map-points", api.MapPoints)                    // 地图坐标点
+			statsGroup.GET("/facilities", api.GetFacilityStats)             // 新增：设施统计
 		}
 
 		// ================= 商户明细检索路由 =================

@@ -11,12 +11,16 @@ import (
 
 // RestaurantQuery 接受前端的分页与条件检索参数
 type RestaurantQuery struct {
-	Page       int    `form:"page,default=1"`       // 当前页码
-	PageSize   int    `form:"page_size,default=15"` // 每页条数
-	DistrictID int    `form:"district_id"`          // 行政区过滤
-	CategoryID int    `form:"category_id"`          // 分类过滤
-	Keyword    string `form:"keyword"`              // 模糊搜索关键字(商户名)
-	SortBy     string `form:"sort_by"`              // 排序策略
+	Page           int    `form:"page,default=1"`       // 当前页码
+	PageSize       int    `form:"page_size,default=15"` // 每页条数
+	DistrictID     int    `form:"district_id"`          // 行政区过滤
+	CategoryID     int    `form:"category_id"`          // 分类过滤
+	Keyword        string `form:"keyword"`              // 模糊搜索关键字(商户名)
+	SortBy         string `form:"sort_by"`              // 排序策略
+	HasFreeParking bool   `form:"has_free_parking"`     // 是否有免费停车
+	IsReservable   bool   `form:"is_reservable"`        // 是否可订座
+	HasBabyChair   bool   `form:"has_baby_chair"`       // 是否有宝宝椅
+	HasPrivateRoom bool   `form:"has_private_room"`     // 是否有包厢
 }
 
 // GetRestaurants 分页条件查询商户明细列表
@@ -39,6 +43,18 @@ func GetRestaurants(c *gin.Context) {
 	}
 	if query.Keyword != "" {
 		db = db.Where("name LIKE ?", "%"+query.Keyword+"%")
+	}
+	if query.HasFreeParking {
+		db = db.Where("has_free_parking = ?", 1)
+	}
+	if query.IsReservable {
+		db = db.Where("is_reservable = ?", 1)
+	}
+	if query.HasBabyChair {
+		db = db.Where("has_baby_chair = ?", 1)
+	}
+	if query.HasPrivateRoom {
+		db = db.Where("has_private_room = ?", 1)
 	}
 
 	// 2. 统计满足条件的总条数 (必须在 Order 和 Limit 之前执行，专为前端 Pagination 组件提供 total 属性)

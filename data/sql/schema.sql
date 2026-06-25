@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS `restaurants` (
     `taste_score` DECIMAL(3, 1) COMMENT '口味细分评分',
     `environment_score` DECIMAL(3, 1) COMMENT '环境细分评分',
     `service_score` DECIMAL(3, 1) COMMENT '服务细分评分',
+    `has_free_parking` TINYINT(1) DEFAULT 0 COMMENT '是否有免费停车',
+    `is_reservable` TINYINT(1) DEFAULT 0 COMMENT '是否可订座',
+    `has_baby_chair` TINYINT(1) DEFAULT 0 COMMENT '是否有宝宝椅',
+    `has_private_room` TINYINT(1) DEFAULT 0 COMMENT '是否有包厢',
     `crawled_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '数据最近一次爬取或更新的时间',
     
     -- 设置外键关联

@@ -17,5 +17,9 @@ type Restaurant struct {
 	TasteScore       float64   `gorm:"type:decimal(3,1)" json:"taste_score"`
 	EnvironmentScore float64   `gorm:"type:decimal(3,1)" json:"environment_score"`
 	ServiceScore     float64   `gorm:"type:decimal(3,1)" json:"service_score"`
+	HasFreeParking   bool      `gorm:"type:tinyint(1);default:0" json:"has_free_parking"`
+	IsReservable     bool      `gorm:"type:tinyint(1);default:0" json:"is_reservable"`
+	HasBabyChair     bool      `gorm:"type:tinyint(1);default:0" json:"has_baby_chair"`
+	HasPrivateRoom   bool      `gorm:"type:tinyint(1);default:0" json:"has_private_room"`
 	CrawledAt        time.Time `json:"crawled_at"`
 }

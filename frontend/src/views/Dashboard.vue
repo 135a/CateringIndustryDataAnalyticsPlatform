@@ -61,21 +61,58 @@
             <button class="close-btn" @click="showShopModal = false">×</button>
           </div>
           <div class="modal-body">
+            <!-- 商户多维筛选工具栏 -->
+            <div class="filter-bar">
+              <select class="filter-select" v-model="filterDistrict" @change="handleFilterChange">
+                <option value="">全部区域</option>
+                <option v-for="d in districtOptions" :value="d.id" :key="d.id">{{ d.district_name }}</option>
+              </select>
+              
+              <select class="filter-select" v-model="filterCategory" @change="handleFilterChange">
+                <option value="">全部菜系</option>
+                <option v-for="c in categoryOptions" :value="c.id" :key="c.id">{{ c.name }}</option>
+              </select>
+              
+              <input class="filter-input" type="text" v-model="filterKeyword" placeholder="输入店名搜索..." @keyup.enter="handleFilterChange" />
+              
+              <div class="checkbox-group">
+                <label><input type="checkbox" v-model="filterFreeParking" @change="handleFilterChange"> 免费停车</label>
+                <label><input type="checkbox" v-model="filterReservable" @change="handleFilterChange"> 可订座</label>
+                <label><input type="checkbox" v-model="filterBabyChair" @change="handleFilterChange"> 宝宝椅</label>
+                <label><input type="checkbox" v-model="filterPrivateRoom" @change="handleFilterChange"> 包厢</label>
+              </div>
+
+              <button class="filter-btn" @click="handleFilterChange">🔍 筛选查询</button>
+            </div>
+
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>排名</th>
                   <th>商户名称</th>
-                  <th>所在区域</th>
-                  <th>大众评分</th>
+                  <th>所属区域</th>
+                  <th>主营菜系</th>
                   <th>人均消费</th>
+                  <th>综合评分</th>
+                  <th>人气(评价数)</th>
+                  <th>服务设施</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="shop in shopList" :key="shop.id">
+                <tr v-for="(shop, index) in shopList" :key="shop.id">
+                  <td><span class="rank-badge" :class="'rank-' + (index + 1)">{{ (shopPage - 1) * shopPageSize + index + 1 }}</span></td>
                   <td class="shop-name">{{ shop.name }}</td>
                   <td>{{ getDistrictName(shop.district_id) }}</td>
-                  <td><span class="rating-tag">⭐ {{ shop.rating }}</span></td>
-                  <td class="price-text">¥ {{ shop.avg_price }}</td>
+                  <td><span class="category-tag">{{ getCategoryName(shop.category_id) }}</span></td>
+                  <td class="price-text">¥{{ shop.avg_price }}</td>
+                  <td>⭐ {{ shop.rating }}</td>
+                  <td>🔥 {{ shop.review_count }}</td>
+                  <td class="facilities-cell">
+                    <span v-if="shop.has_free_parking" class="f-tag" title="免费停车">🅿️</span>
+                    <span v-if="shop.is_reservable" class="f-tag" title="可订座">📅</span>
+                    <span v-if="shop.has_baby_chair" class="f-tag" title="宝宝椅">👶</span>
+                    <span v-if="shop.has_private_room" class="f-tag" title="包厢">🚪</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -136,20 +173,66 @@ const shopPage = ref(1)
 const shopPageSize = ref(10)
 const shopTotal = ref(0)
 
+// 筛选条件状态
+const filterDistrict = ref('')
+const filterCategory = ref('')
+const filterKeyword = ref('')
+const filterFreeParking = ref(false)
+const filterReservable = ref(false)
+const filterBabyChair = ref(false)
+const filterPrivateRoom = ref(false)
+
+const districtOptions = ref([])
+const categoryOptions = ref([])
+
+// 加载字典数据 (区域和分类下拉框)
+const loadDictionaries = async () => {
+  try {
+    const [distRes, catRes] = await Promise.all([
+      request.get('/districts'),
+      request.get('/categories')
+    ])
+    districtOptions.value = distRes
+    categoryOptions.value = catRes
+  } catch (e) {
+    console.error("加载字典数据失败", e)
+  }
+}
+
 // 处理卡片点击
 const handleMetricClick = (key) => {
   if (key === 'total_shops') {
     showShopModal.value = true
     shopPage.value = 1
+    // 每次打开时，如果还没加载字典，就加载一下
+    if (districtOptions.value.length === 0) {
+      loadDictionaries()
+    }
     fetchShops()
   }
 }
 
-// 拉取商户列表数据 (按评分降序)
+const handleFilterChange = () => {
+  shopPage.value = 1 // 切换筛选条件时，重置到第一页
+  fetchShops()
+}
+
+// 拉取商户列表数据 (按评分降序 + 动态多维筛选)
 const fetchShops = async () => {
   try {
     const res = await request.get('/restaurants', {
-      params: { page: shopPage.value, page_size: shopPageSize.value, sort_by: 'rating' }
+      params: { 
+        page: shopPage.value, 
+        page_size: shopPageSize.value, 
+        sort_by: 'rating',
+        district_id: filterDistrict.value || undefined,
+        category_id: filterCategory.value || undefined,
+        keyword: filterKeyword.value || undefined,
+        has_free_parking: filterFreeParking.value || undefined,
+        is_reservable: filterReservable.value || undefined,
+        has_baby_chair: filterBabyChair.value || undefined,
+        has_private_room: filterPrivateRoom.value || undefined
+      }
     })
     shopList.value = res.list
     shopTotal.value = res.total
@@ -586,6 +669,90 @@ const handleResize = () => {
   font-family: monospace;
   font-size: 1.1rem;
 }
+
+/* 筛选工具栏 */
+.filter-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.filter-select, .filter-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  outline: none;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+.filter-select:focus, .filter-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.filter-select option {
+  background: #1e293b;
+  color: #fff;
+}
+
+.filter-btn {
+  background: linear-gradient(to right, #3b82f6, #0ea5e9);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.filter-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.checkbox-group {
+  display: flex;
+  gap: 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+  align-items: center;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.facilities-cell {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
+.f-tag {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: help;
+}
+
 
 /* 评价瀑布流 */
 .review-list {

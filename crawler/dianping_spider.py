@@ -72,6 +72,10 @@ def fetch_data_from_dianping(district, category):
             'taste_score': round(random.uniform(3.5, 5.0), 1),
             'environment_score': round(random.uniform(3.5, 5.0), 1),
             'service_score': round(random.uniform(3.5, 5.0), 1),
+            'has_free_parking': random.choice([0, 1]),
+            'is_reservable': random.choice([0, 1]),
+            'has_baby_chair': random.choice([0, 1]),
+            'has_private_room': random.choice([0, 1]),
         })
     return mock_data
 
@@ -94,18 +98,24 @@ def save_to_mysql(conn, data_list):
             INSERT INTO restaurants (
                 shop_id, name, category_id, district_id, address, 
                 avg_price, rating, review_count, 
-                opening_hours, taste_score, environment_score, service_score
+                opening_hours, taste_score, environment_score, service_score,
+                has_free_parking, is_reservable, has_baby_chair, has_private_room
             ) VALUES (
                 %(shop_id)s, %(name)s, 
                 (SELECT id FROM categories WHERE name = %(category_name)s LIMIT 1), 
                 (SELECT id FROM districts WHERE district_name = %(district_name)s LIMIT 1), 
                 %(address)s, %(avg_price)s, %(rating)s, 
-                %(review_count)s, %(opening_hours)s, %(taste_score)s, %(environment_score)s, %(service_score)s
+                %(review_count)s, %(opening_hours)s, %(taste_score)s, %(environment_score)s, %(service_score)s,
+                %(has_free_parking)s, %(is_reservable)s, %(has_baby_chair)s, %(has_private_room)s
             )
             ON DUPLICATE KEY UPDATE 
                 rating = VALUES(rating), 
                 review_count = VALUES(review_count),
-                avg_price = VALUES(avg_price);
+                avg_price = VALUES(avg_price),
+                has_free_parking = VALUES(has_free_parking),
+                is_reservable = VALUES(is_reservable),
+                has_baby_chair = VALUES(has_baby_chair),
+                has_private_room = VALUES(has_private_room);
         """
         cursor.executemany(insert_sql, data_list)
         conn.commit()

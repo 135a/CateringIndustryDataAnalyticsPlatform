@@ -159,3 +159,29 @@ func MapPoints(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": echartsData})
 }
+
+// GetFacilityStats 获取商户各类设施的统计情况
+func GetFacilityStats(c *gin.Context) {
+	db := database.DB.Model(&model.Restaurant{})
+
+	var total int64
+	var freeParking, reservable, babyChair, privateRoom int64
+
+	db.Count(&total)
+	db.Where("has_free_parking = ?", 1).Count(&freeParking)
+	db.Where("is_reservable = ?", 1).Count(&reservable)
+	db.Where("has_baby_chair = ?", 1).Count(&babyChair)
+	db.Where("has_private_room = ?", 1).Count(&privateRoom)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": gin.H{
+			"total":            total,
+			"has_free_parking": freeParking,
+			"is_reservable":    reservable,
+			"has_baby_chair":   babyChair,
+			"has_private_room": privateRoom,
+		},
+	})
+}
