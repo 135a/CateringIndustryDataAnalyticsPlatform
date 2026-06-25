@@ -46,7 +46,6 @@ func SetupRouter() *gin.Engine {
 		// ================= 商户明细检索路由 =================
 		// 分页查询商户列表 (支持排序与多条件筛选)
 		apiGroup.GET("/restaurants", api.GetRestaurants)
-		apiGroup.GET("/reviews", api.GetReviews) // 新增：分页获取评价（含商户信息）
 
 		// ================= 用户相关路由 =================
 		userGroup := apiGroup.Group("/user")

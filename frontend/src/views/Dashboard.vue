@@ -15,7 +15,7 @@
         class="metric-card glass-panel" 
         v-for="(val, key) in metricsLabels" 
         :key="key"
-        :class="{ 'clickable-card': key === 'total_shops' || key === 'total_reviews' }"
+        :class="{ 'clickable-card': key === 'total_shops' }"
         @click="handleMetricClick(key)"
       >
         <div class="metric-title">{{ val.title }}</div>
@@ -23,7 +23,7 @@
           {{ formatNumber(overview[key]) }}
           <span class="metric-unit">{{ val.unit }}</span>
         </div>
-        <div class="click-hint" v-if="key === 'total_shops' || key === 'total_reviews'">
+        <div class="click-hint" v-if="key === 'total_shops'">
           👆 点击查看明细数据
         </div>
       </div>
@@ -90,38 +90,7 @@
       </div>
     </transition>
 
-    <!-- 评价明细列表弹窗 (下钻) -->
-    <transition name="fade">
-      <div class="modal-overlay" v-if="showReviewModal" @click.self="showReviewModal = false">
-        <div class="modal-content glass-panel">
-          <div class="modal-header">
-            <h2>💬 最新食客评价瀑布流</h2>
-            <button class="close-btn" @click="showReviewModal = false">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="review-list">
-              <div class="review-item" v-for="review in reviewList" :key="review.id">
-                <div class="review-header">
-                  <span class="user-name">👤 {{ review.user_name }}</span>
-                  <span class="review-date">{{ new Date(review.created_at).toLocaleString() }}</span>
-                </div>
-                <div class="review-target">
-                  点评了：<span class="target-shop">🎯 {{ review.restaurant.name }}</span>
-                  <span class="rating-tag">⭐ {{ review.rating }}</span>
-                </div>
-                <div class="review-content">“{{ review.content }}”</div>
-              </div>
-            </div>
-            
-            <div class="pagination">
-              <button class="page-btn" :disabled="reviewPage <= 1" @click="changeReviewPage(-1)">上一页</button>
-              <span class="page-info">第 {{ reviewPage }} 页 / 共 {{ Math.ceil(reviewTotal / reviewPageSize) }} 页</span>
-              <button class="page-btn" :disabled="reviewPage >= Math.ceil(reviewTotal / reviewPageSize)" @click="changeReviewPage(1)">下一页</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
+
 
   </div>
 </template>
@@ -145,13 +114,11 @@ const handleLogout = () => {
 const metricsLabels = {
   total_shops: { title: '收录商户总数', unit: '家' },
   avg_price: { title: '全市人均消费', unit: '元' },
-  total_reviews: { title: '累计评价总量', unit: '条' },
   avg_rating: { title: '全网平均星级', unit: '星' }
 }
 const overview = ref({
   total_shops: 0,
   avg_price: 0,
-  total_reviews: 0,
   avg_rating: 0
 })
 
@@ -169,23 +136,12 @@ const shopPage = ref(1)
 const shopPageSize = ref(10)
 const shopTotal = ref(0)
 
-// 2. 评价列表弹窗
-const showReviewModal = ref(false)
-const reviewList = ref([])
-const reviewPage = ref(1)
-const reviewPageSize = ref(6) // 评价气泡比较大，每页显示少一点
-const reviewTotal = ref(0)
-
 // 处理卡片点击
 const handleMetricClick = (key) => {
   if (key === 'total_shops') {
     showShopModal.value = true
     shopPage.value = 1
     fetchShops()
-  } else if (key === 'total_reviews') {
-    showReviewModal.value = true
-    reviewPage.value = 1
-    fetchReviews()
   }
 }
 
@@ -204,23 +160,6 @@ const fetchShops = async () => {
 const changeShopPage = (delta) => {
   shopPage.value += delta
   fetchShops()
-}
-
-// 拉取评价列表数据
-const fetchReviews = async () => {
-  try {
-    const res = await request.get('/reviews', {
-      params: { page: reviewPage.value, page_size: reviewPageSize.value }
-    })
-    reviewList.value = res.list
-    reviewTotal.value = res.total
-  } catch (e) {
-    console.error("获取评价列表失败", e)
-  }
-}
-const changeReviewPage = (delta) => {
-  reviewPage.value += delta
-  fetchReviews()
 }
 
 // 简单的字典映射

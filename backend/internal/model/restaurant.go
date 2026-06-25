@@ -10,8 +10,6 @@ type Restaurant struct {
 	CategoryID       int       `gorm:"not null" json:"category_id"`
 	DistrictID       int       `gorm:"not null" json:"district_id"`
 	Address          string    `gorm:"type:varchar(500)" json:"address"`
-	Longitude        float64   `gorm:"type:decimal(10,6)" json:"longitude"`
-	Latitude         float64   `gorm:"type:decimal(10,6)" json:"latitude"`
 	AvgPrice         float64   `gorm:"type:decimal(10,2)" json:"avg_price"`
 	Rating           float64   `gorm:"type:decimal(3,1)" json:"rating"`
 	ReviewCount      int       `gorm:"default:0" json:"review_count"`

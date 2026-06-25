@@ -59,18 +59,12 @@ def fetch_data_from_dianping(district, category):
     mock_data = []
     for i in range(1, random.randint(5, 12)): # 随机生成几条商户数据
         shop_id = f"dp_{int(time.time())}_{random.randint(1000, 9999)}"
-        # 模拟生成杭州附近的随机经纬度 (大概在 120.15, 30.28 附近)
-        lng = round(120.10 + random.uniform(0, 0.20), 6)
-        lat = round(30.20 + random.uniform(0, 0.15), 6)
-        
         mock_data.append({
             'shop_id': shop_id,
             'name': f"{district}正宗{category}_{i}店",
             'category_name': category,
             'district_name': district,
             'address': f"杭州市{district}某某街道{random.randint(1, 999)}号",
-            'longitude': lng,
-            'latitude': lat,
             'avg_price': round(random.uniform(20, 400), 2),
             'rating': round(random.uniform(3.5, 5.0), 1),
             'review_count': random.randint(10, 5000),
@@ -99,13 +93,13 @@ def save_to_mysql(conn, data_list):
         insert_sql = """
             INSERT INTO restaurants (
                 shop_id, name, category_id, district_id, address, 
-                longitude, latitude, avg_price, rating, review_count, 
+                avg_price, rating, review_count, 
                 opening_hours, taste_score, environment_score, service_score
             ) VALUES (
                 %(shop_id)s, %(name)s, 
                 (SELECT id FROM categories WHERE name = %(category_name)s LIMIT 1), 
                 (SELECT id FROM districts WHERE district_name = %(district_name)s LIMIT 1), 
-                %(address)s, %(longitude)s, %(latitude)s, %(avg_price)s, %(rating)s, 
+                %(address)s, %(avg_price)s, %(rating)s, 
                 %(review_count)s, %(opening_hours)s, %(taste_score)s, %(environment_score)s, %(service_score)s
             )
             ON DUPLICATE KEY UPDATE 
@@ -115,41 +109,8 @@ def save_to_mysql(conn, data_list):
         """
         cursor.executemany(insert_sql, data_list)
         conn.commit()
-
-        # ---------- 新增：为您自动生成并写入具体的文字评价 ----------
-        cursor.execute("SELECT id, shop_id FROM restaurants")
-        shop_to_id = {row[1]: row[0] for row in cursor.fetchall()}
-        
-        review_data = []
-        review_texts = [
-            "味道绝了，强烈推荐！", "排队太久了，不过吃到的那一刻觉得很值。", "环境很好，适合情侣约会。", 
-            "服务员态度一般，菜品偏咸。", "性价比超高，下次还会再来！", "分量很足，老板很热情。",
-            "拍照很出片，但是味道比较普通。", "食材非常新鲜，就是价格偏贵。", "店铺位置不太好找，但是味道真不错！"
-        ]
-        
-        for data in data_list:
-            internal_id = shop_to_id.get(data['shop_id'])
-            if not internal_id:
-                continue
-                
-            # 为每家店随机生成 2 到 5 条评价
-            for _ in range(random.randint(2, 5)):
-                review_data.append({
-                    'restaurant_id': internal_id,
-                    'user_name': f"大众点评用户_{random.randint(1000, 9999)}",
-                    'rating': data['rating'], # 简单起见，评价分数与商户总分一致
-                    'content': random.choice(review_texts)
-                })
-                
-        if review_data:
-            insert_review_sql = """
-                INSERT INTO reviews (restaurant_id, user_name, rating, content)
-                VALUES (%(restaurant_id)s, %(user_name)s, %(rating)s, %(content)s)
-            """
-            cursor.executemany(insert_review_sql, review_data)
-            conn.commit()
             
-        print(f"   [+] 成功将 {len(data_list)} 条商户数据 及 {len(review_data)} 条评价明细存入 MySQL 数据库。")
+        print(f"   [+] 成功将 {len(data_list)} 条商户数据存入 MySQL 数据库。")
     except Exception as e:
         conn.rollback()
         print(f"   [-] 写入 MySQL 失败: {e}")
