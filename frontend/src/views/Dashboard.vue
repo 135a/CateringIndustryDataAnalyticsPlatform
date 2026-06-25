@@ -82,6 +82,16 @@
                 <label><input type="checkbox" v-model="filterPrivateRoom" @change="handleFilterChange"> 包厢</label>
               </div>
 
+              <select class="filter-select" v-model="filterSortBy" @change="handleFilterChange">
+                <option value="rating">按综合评分排</option>
+                <option value="review">按人气最高排</option>
+                <option value="taste">按口味最好排</option>
+                <option value="environment">按环境最好排</option>
+                <option value="service">按服务最好排</option>
+                <option value="price_asc">价格从低到高</option>
+                <option value="price_desc">价格从高到低</option>
+              </select>
+
               <button class="filter-btn" @click="handleFilterChange">🔍 筛选查询</button>
             </div>
 
@@ -94,6 +104,7 @@
                   <th>主营菜系</th>
                   <th>人均消费</th>
                   <th>综合评分</th>
+                  <th>详细打分</th>
                   <th>人气(评价数)</th>
                   <th>服务设施</th>
                 </tr>
@@ -106,6 +117,11 @@
                   <td><span class="category-tag">{{ getCategoryName(shop.category_id) }}</span></td>
                   <td class="price-text">¥{{ shop.avg_price }}</td>
                   <td>⭐ {{ shop.rating }}</td>
+                  <td class="score-details">
+                    <span class="sd-item" title="口味">🍲{{ shop.taste_score }}</span>
+                    <span class="sd-item" title="环境">🌲{{ shop.environment_score }}</span>
+                    <span class="sd-item" title="服务">🤝{{ shop.service_score }}</span>
+                  </td>
                   <td>🔥 {{ shop.review_count }}</td>
                   <td class="facilities-cell">
                     <span v-if="shop.has_free_parking" class="f-tag" title="免费停车">🅿️</span>
@@ -177,6 +193,7 @@ const shopTotal = ref(0)
 const filterDistrict = ref('')
 const filterCategory = ref('')
 const filterKeyword = ref('')
+const filterSortBy = ref('rating') // 默认按评分排序
 const filterFreeParking = ref(false)
 const filterReservable = ref(false)
 const filterBabyChair = ref(false)
@@ -224,7 +241,7 @@ const fetchShops = async () => {
       params: { 
         page: shopPage.value, 
         page_size: shopPageSize.value, 
-        sort_by: 'rating',
+        sort_by: filterSortBy.value,
         district_id: filterDistrict.value || undefined,
         category_id: filterCategory.value || undefined,
         keyword: filterKeyword.value || undefined,
@@ -245,9 +262,18 @@ const changeShopPage = (delta) => {
   fetchShops()
 }
 
-// 简单的字典映射
-const districtsMap = {1:'西湖区', 2:'上城区', 3:'拱墅区', 4:'滨江区', 5:'萧山区', 6:'余杭区', 7:'临平区', 8:'钱塘区', 9:'富阳区', 10:'临安区'}
-const getDistrictName = (id) => districtsMap[id] || '未知区域'
+// 简单的字典映射 (支持动态数据回退)
+const getDistrictName = (id) => {
+  const d = districtOptions.value.find(x => x.id === id)
+  if (d) return d.district_name
+  const districtsMap = {1:'西湖区', 2:'上城区', 3:'拱墅区', 4:'滨江区', 5:'萧山区', 6:'余杭区', 7:'临平区', 8:'钱塘区', 9:'富阳区', 10:'临安区'}
+  return districtsMap[id] || '未知区域'
+}
+
+const getCategoryName = (id) => {
+  const c = categoryOptions.value.find(x => x.id === id)
+  return c ? c.name : '未知菜系'
+}
 
 // ================= ECharts 挂载与渲染逻辑 =================
 const pieChartRef = ref(null)
@@ -386,6 +412,29 @@ const renderScatterChart = (data) => {
         }
       }
     ]
+  })
+
+  // === 新增：散点图点击下钻功能 ===
+  scatterChart.off('click')
+  scatterChart.on('click', function (params) {
+    if (params.componentType === 'series') {
+      const shopName = params.value[2] // params.value: [价格, 评分, 店名, 分类]
+      // 触发下钻：自动填入搜索框并打开弹窗
+      filterKeyword.value = shopName
+      filterDistrict.value = ''
+      filterCategory.value = ''
+      filterFreeParking.value = false
+      filterReservable.value = false
+      filterBabyChair.value = false
+      filterPrivateRoom.value = false
+      
+      showShopModal.value = true
+      shopPage.value = 1
+      if (districtOptions.value.length === 0) {
+        loadDictionaries()
+      }
+      fetchShops()
+    }
   })
 }
 
@@ -753,6 +802,20 @@ const handleResize = () => {
   cursor: help;
 }
 
+.score-details {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  justify-content: center;
+}
+
+.sd-item {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
 
 /* 评价瀑布流 */
 .review-list {

@@ -67,6 +67,12 @@ func GetRestaurants(c *gin.Context) {
 		db = db.Order("rating DESC, review_count DESC")
 	case "review": // 人气最旺优先 (评价最多)
 		db = db.Order("review_count DESC")
+	case "taste":
+		db = db.Order("taste_score DESC, review_count DESC")
+	case "environment":
+		db = db.Order("environment_score DESC, review_count DESC")
+	case "service":
+		db = db.Order("service_score DESC, review_count DESC")
 	case "price_asc": // 价格从低到高
 		db = db.Order("avg_price ASC")
 	case "price_desc": // 价格从高到低

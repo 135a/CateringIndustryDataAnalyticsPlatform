@@ -31,6 +31,11 @@ CATEGORIES = [
     '火锅', '茶馆', '西餐', '日式料理', '小龙虾',
     '烤肉', '湘菜', '东北菜', '北京菜', '韩式料理'
 ]
+
+# 抓取数据量控制：每个分类下每次抓取的商户数量区间 (您可以随时调大此数值以获取更多数据)
+FETCH_COUNT_MIN = 5
+FETCH_COUNT_MAX = 12
+
 # ============================================
 
 def init_db_connection():
@@ -54,10 +59,9 @@ def fetch_data_from_dianping(district, category):
     为演示“双写存储”流程，此处随机生成结构化餐饮数据。
     """
     print(f"[*] 正在抓取: {CITY} - {district} - {category} 的数据...")
-    time.sleep(random.uniform(1.0, 2.5)) # 模拟网络请求延迟
     
     mock_data = []
-    for i in range(1, random.randint(5, 12)): # 随机生成几条商户数据
+    for i in range(1, random.randint(FETCH_COUNT_MIN, FETCH_COUNT_MAX)): # 根据配置控制每次抓取的商户数量
         shop_id = f"dp_{int(time.time())}_{random.randint(1000, 9999)}"
         mock_data.append({
             'shop_id': shop_id,
@@ -173,7 +177,8 @@ def run_spider():
             if conn:
                 save_to_mysql(conn, data)
                 
-            time.sleep(random.uniform(1.5, 3.5)) # 防反爬基础策略：随机休眠
+            # 取消随机休眠以实现极速生成测试数据
+            # time.sleep(random.uniform(1.5, 3.5)) 
             
     print("\n📦 全部分类抓取完毕，开始生成本地 Excel 备份...")
     # 一次性将今日所有抓取到的数据备份进 Excel
