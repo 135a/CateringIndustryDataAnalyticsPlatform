@@ -13,8 +13,11 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// 配置跨域中间件 (开发环境允许所有来源跨域)
-	r.Use(cors.Default())
+	// 配置跨域，必须允许前端携带 Authorization Token 头
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	r.Use(cors.New(corsConfig))
 
 	// 核心业务 API 路由组
 	apiGroup := r.Group("/api/v1")
@@ -43,6 +46,7 @@ func SetupRouter() *gin.Engine {
 		// ================= 商户明细检索路由 =================
 		// 分页查询商户列表 (支持排序与多条件筛选)
 		apiGroup.GET("/restaurants", api.GetRestaurants)
+		apiGroup.GET("/reviews", api.GetReviews) // 新增：分页获取评价（含商户信息）
 
 		// ================= 用户相关路由 =================
 		userGroup := apiGroup.Group("/user")

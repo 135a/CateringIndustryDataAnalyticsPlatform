@@ -59,6 +59,19 @@ CREATE TABLE IF NOT EXISTS `restaurants` (
     INDEX `idx_review_count` (`review_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='餐饮商户明细表';
 
+-- 5. 用户评价表 (Reviews) - 存储对具体商户的评价内容，用于数据下钻展示
+CREATE TABLE IF NOT EXISTS `reviews` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '评价ID',
+    `restaurant_id` BIGINT NOT NULL COMMENT '关联的商户内部主键ID',
+    `user_name` VARCHAR(50) DEFAULT '匿名用户' COMMENT '评价用户的昵称',
+    `rating` DECIMAL(3, 1) COMMENT '打分星级 (如 5.0)',
+    `content` TEXT COMMENT '具体的评价文字内容',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '评价时间',
+    
+    FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE,
+    INDEX `idx_restaurant_id` (`restaurant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户评价明细表';
+
 
 -- ----------------------------------------------------------------------
 -- 下面是给字典表预插入的一些基础数据，方便项目冷启动

@@ -11,11 +11,20 @@
 
     <!-- 核心业务指标卡片 (Overview) -->
     <div class="metrics-grid">
-      <div class="metric-card glass-panel" v-for="(val, key) in metricsLabels" :key="key">
+      <div 
+        class="metric-card glass-panel" 
+        v-for="(val, key) in metricsLabels" 
+        :key="key"
+        :class="{ 'clickable-card': key === 'total_shops' || key === 'total_reviews' }"
+        @click="handleMetricClick(key)"
+      >
         <div class="metric-title">{{ val.title }}</div>
         <div class="metric-value">
           {{ formatNumber(overview[key]) }}
           <span class="metric-unit">{{ val.unit }}</span>
+        </div>
+        <div class="click-hint" v-if="key === 'total_shops' || key === 'total_reviews'">
+          👆 点击查看明细数据
         </div>
       </div>
     </div>
@@ -40,6 +49,80 @@
         <div ref="scatterChartRef" class="chart" style="height: 400px;"></div>
       </div>
     </div>
+
+    <!-- ================= 弹窗区域 ================= -->
+
+    <!-- 商户列表弹窗 (下钻) -->
+    <transition name="fade">
+      <div class="modal-overlay" v-if="showShopModal" @click.self="showShopModal = false">
+        <div class="modal-content glass-panel">
+          <div class="modal-header">
+            <h2>🏅 杭州高分商户排行榜</h2>
+            <button class="close-btn" @click="showShopModal = false">×</button>
+          </div>
+          <div class="modal-body">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>商户名称</th>
+                  <th>所在区域</th>
+                  <th>大众评分</th>
+                  <th>人均消费</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="shop in shopList" :key="shop.id">
+                  <td class="shop-name">{{ shop.name }}</td>
+                  <td>{{ getDistrictName(shop.district_id) }}</td>
+                  <td><span class="rating-tag">⭐ {{ shop.rating }}</span></td>
+                  <td class="price-text">¥ {{ shop.avg_price }}</td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <div class="pagination">
+              <button class="page-btn" :disabled="shopPage <= 1" @click="changeShopPage(-1)">上一页</button>
+              <span class="page-info">第 {{ shopPage }} 页 / 共 {{ Math.ceil(shopTotal / shopPageSize) }} 页</span>
+              <button class="page-btn" :disabled="shopPage >= Math.ceil(shopTotal / shopPageSize)" @click="changeShopPage(1)">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 评价明细列表弹窗 (下钻) -->
+    <transition name="fade">
+      <div class="modal-overlay" v-if="showReviewModal" @click.self="showReviewModal = false">
+        <div class="modal-content glass-panel">
+          <div class="modal-header">
+            <h2>💬 最新食客评价瀑布流</h2>
+            <button class="close-btn" @click="showReviewModal = false">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="review-list">
+              <div class="review-item" v-for="review in reviewList" :key="review.id">
+                <div class="review-header">
+                  <span class="user-name">👤 {{ review.user_name }}</span>
+                  <span class="review-date">{{ new Date(review.created_at).toLocaleString() }}</span>
+                </div>
+                <div class="review-target">
+                  点评了：<span class="target-shop">🎯 {{ review.restaurant.name }}</span>
+                  <span class="rating-tag">⭐ {{ review.rating }}</span>
+                </div>
+                <div class="review-content">“{{ review.content }}”</div>
+              </div>
+            </div>
+            
+            <div class="pagination">
+              <button class="page-btn" :disabled="reviewPage <= 1" @click="changeReviewPage(-1)">上一页</button>
+              <span class="page-info">第 {{ reviewPage }} 页 / 共 {{ Math.ceil(reviewTotal / reviewPageSize) }} 页</span>
+              <button class="page-btn" :disabled="reviewPage >= Math.ceil(reviewTotal / reviewPageSize)" @click="changeReviewPage(1)">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
@@ -50,10 +133,8 @@ import * as echarts from 'echarts'
 import request from '../utils/request'
 
 const router = useRouter()
-// 尝试从浏览器缓存读取用户名，默认为 Admin
 const username = ref(localStorage.getItem('username') || 'Admin')
 
-// 安全退出逻辑
 const handleLogout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('username')
@@ -74,11 +155,77 @@ const overview = ref({
   avg_rating: 0
 })
 
-// 数字格式化工具 (如：1234567 -> 1,234,567)
 const formatNumber = (num) => {
   if (!num) return 0
   return Number(num).toLocaleString(undefined, { maximumFractionDigits: 1 })
 }
+
+// ================= 弹窗交互逻辑 (数据下钻) =================
+
+// 1. 商户列表弹窗
+const showShopModal = ref(false)
+const shopList = ref([])
+const shopPage = ref(1)
+const shopPageSize = ref(10)
+const shopTotal = ref(0)
+
+// 2. 评价列表弹窗
+const showReviewModal = ref(false)
+const reviewList = ref([])
+const reviewPage = ref(1)
+const reviewPageSize = ref(6) // 评价气泡比较大，每页显示少一点
+const reviewTotal = ref(0)
+
+// 处理卡片点击
+const handleMetricClick = (key) => {
+  if (key === 'total_shops') {
+    showShopModal.value = true
+    shopPage.value = 1
+    fetchShops()
+  } else if (key === 'total_reviews') {
+    showReviewModal.value = true
+    reviewPage.value = 1
+    fetchReviews()
+  }
+}
+
+// 拉取商户列表数据 (按评分降序)
+const fetchShops = async () => {
+  try {
+    const res = await request.get('/restaurants', {
+      params: { page: shopPage.value, page_size: shopPageSize.value, sort_by: 'rating' }
+    })
+    shopList.value = res.list
+    shopTotal.value = res.total
+  } catch (e) {
+    console.error("获取商户列表失败", e)
+  }
+}
+const changeShopPage = (delta) => {
+  shopPage.value += delta
+  fetchShops()
+}
+
+// 拉取评价列表数据
+const fetchReviews = async () => {
+  try {
+    const res = await request.get('/reviews', {
+      params: { page: reviewPage.value, page_size: reviewPageSize.value }
+    })
+    reviewList.value = res.list
+    reviewTotal.value = res.total
+  } catch (e) {
+    console.error("获取评价列表失败", e)
+  }
+}
+const changeReviewPage = (delta) => {
+  reviewPage.value += delta
+  fetchReviews()
+}
+
+// 简单的字典映射
+const districtsMap = {1:'西湖区', 2:'上城区', 3:'拱墅区', 4:'滨江区', 5:'萧山区', 6:'余杭区', 7:'临平区', 8:'钱塘区', 9:'富阳区', 10:'临安区'}
+const getDistrictName = (id) => districtsMap[id] || '未知区域'
 
 // ================= ECharts 挂载与渲染逻辑 =================
 const pieChartRef = ref(null)
@@ -86,11 +233,10 @@ const barChartRef = ref(null)
 const scatterChartRef = ref(null)
 
 let pieChart, barChart, scatterChart
-const textStyle = { color: '#94a3b8' } // 统一暗色系文字色
+const textStyle = { color: '#94a3b8' } 
 
 const loadData = async () => {
   try {
-    // 1. 并发请求四个核心接口，提升数据加载速度
     const [overRes, pieRes, barRes, scatterRes] = await Promise.all([
       request.get('/statistics/overview'),
       request.get('/statistics/category-pie'),
@@ -98,16 +244,9 @@ const loadData = async () => {
       request.get('/statistics/price-rating-scatter')
     ])
 
-    // 2. 绑定指标卡数据
     overview.value = overRes
-
-    // 3. 渲染炫酷的南丁格尔玫瑰图
     renderPieChart(pieRes)
-
-    // 4. 渲染柱状折线双轴图
     renderBarChart(barRes)
-
-    // 5. 渲染绿宝石散点图
     renderScatterChart(scatterRes)
 
   } catch (error) {
@@ -115,7 +254,6 @@ const loadData = async () => {
   }
 }
 
-// 图表渲染器实现细节...
 const renderPieChart = (data) => {
   pieChart = echarts.init(pieChartRef.value)
   pieChart.setOption({
@@ -124,9 +262,9 @@ const renderPieChart = (data) => {
       {
         name: '品类占比',
         type: 'pie',
-        radius: [20, 100], // 空心环状效果
+        radius: [20, 100], 
         center: ['50%', '50%'],
-        roseType: 'area',  // 开启玫瑰图模式
+        roseType: 'area',  
         itemStyle: { borderRadius: 6 },
         label: { color: '#fff' },
         data: data
@@ -164,7 +302,6 @@ const renderBarChart = (data) => {
         type: 'bar',
         data: data.shop_counts,
         itemStyle: {
-          // 渐变蓝柱体
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#0ea5e9' },
             { offset: 1, color: '#3b82f6' }
@@ -193,7 +330,6 @@ const renderScatterChart = (data) => {
       borderColor: '#3b82f6',
       textStyle: { color: '#fff' },
       formatter: function (params) {
-        // [价格, 评分, 店名, 分类]
         return `<div style="padding: 4px;">
                   <b style="color: #34d399; font-size: 16px;">${params.value[2]}</b> 
                   <span style="color: #94a3b8; font-size: 12px;">(${params.value[3]})</span><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"/>
@@ -212,7 +348,7 @@ const renderScatterChart = (data) => {
     yAxis: {
       name: '大众评分',
       type: 'value',
-      min: 2, max: 5, // 评分一般在 2 到 5 之间
+      min: 2, max: 5, 
       axisLabel: textStyle, nameTextStyle: textStyle,
       splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
     },
@@ -231,7 +367,6 @@ const renderScatterChart = (data) => {
   })
 }
 
-// 绑定与解绑自适应窗口改变事件
 onMounted(() => {
   loadData()
   window.addEventListener('resize', handleResize)
@@ -313,16 +448,40 @@ const handleResize = () => {
 }
 
 .metric-card {
+  position: relative;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   border-top: 3px solid var(--brand-primary);
-  transition: transform var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
-.metric-card:hover {
-  transform: translateY(-5px);
+.clickable-card {
+  cursor: pointer;
+  border-top: 3px solid #34d399;
+}
+
+.clickable-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 10px 25px rgba(52, 211, 153, 0.2);
+  border-color: #10b981;
+}
+
+.click-hint {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 0.8rem;
+  color: #34d399;
+  opacity: 0.8;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
 }
 
 .metric-title {
@@ -340,7 +499,6 @@ const handleResize = () => {
   display: flex;
   align-items: baseline;
   gap: 0.3rem;
-  /* 科技感数字阴影 */
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
@@ -353,7 +511,7 @@ const handleResize = () => {
 /* 图表矩阵 */
 .charts-grid {
   display: grid;
-  grid-template-columns: 1fr 2.5fr; /* 饼图占1份，双轴图占2.5份 */
+  grid-template-columns: 1fr 2.5fr; 
   gap: 1.5rem;
 }
 
@@ -385,7 +543,221 @@ const handleResize = () => {
   grid-column: 1 / -1;
 }
 
-/* 响应式降级 */
+/* ================= 弹窗样式 (Modal) ================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  animation: slideDown 0.3s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 1rem;
+}
+
+.modal-header h2 {
+  font-size: 1.4rem;
+  color: var(--text-primary);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 2rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #ef4444;
+}
+
+.modal-body {
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+/* 自定义滚动条 */
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+/* 数据表格 */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+}
+
+.data-table th, .data-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.data-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.data-table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.shop-name {
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.price-text {
+  color: #f59e0b;
+  font-family: monospace;
+  font-size: 1.1rem;
+}
+
+/* 评价瀑布流 */
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.review-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1.2rem;
+  transition: transform 0.2s;
+}
+
+.review-item:hover {
+  transform: translateX(5px);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.user-name {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.review-date {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.review-target {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.target-shop {
+  color: #34d399;
+  font-weight: 600;
+  background: rgba(52, 211, 153, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.rating-tag {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.review-content {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: #f8fafc;
+  font-style: italic;
+}
+
+/* 分页控件 */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.page-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:not(:disabled):hover {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.page-info {
+  color: var(--text-secondary);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 1024px) {
   .charts-grid {
     grid-template-columns: 1fr;

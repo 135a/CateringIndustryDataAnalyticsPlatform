@@ -1,7 +1,7 @@
 # ==============================
 # 第一阶段：编译阶段 (Builder)
 # ==============================
-FROM golang:1.21-alpine AS builder
+FROM golang:alpine AS builder
 
 # 设置构建环境变量，开启 Goproxy 国内代理极速下载依赖
 ENV GO111MODULE=on \

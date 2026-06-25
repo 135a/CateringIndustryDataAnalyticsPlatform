@@ -1,14 +1,14 @@
 # ==============================
 # 第一阶段：前端编译阶段 (Node.js)
 # ==============================
-FROM node:18-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
 # 利用 Docker 缓存层，先安装依赖
 COPY package*.json ./
-# 设置淘宝镜像加速下载前端包
-RUN npm config set registry https://registry.npmmirror.com && npm install
+# 避免本地 Windows 的 lock 文件影响 Linux 容器中 native 依赖包（如 esbuild/rolldown）的下载
+RUN rm -f package-lock.json && npm config set registry https://registry.npmmirror.com && npm install
 
 # 拷贝全部前端代码并打包
 COPY . .

@@ -22,8 +22,15 @@ os.makedirs(EXCEL_SAVE_DIR, exist_ok=True)
 
 # 目标城市与行政区示例
 CITY = '杭州市'
-DISTRICTS = ['西湖区', '上城区', '滨江区', '余杭区']
-CATEGORIES = ['火锅', '江浙菜', '咖啡', '小吃快餐']
+DISTRICTS = ['西湖区', '上城区', '拱墅区', '滨江区', '萧山区', '余杭区', '临平区', '钱塘区', '富阳区', '临安区']
+CATEGORIES = [
+    '小吃快餐', '咖啡', '自助餐', '面包甜点', '酒吧', 
+    '烧烤烤串', '创意菜', '鱼鲜海鲜', '水果生鲜', '饮品',
+    '特色菜', '地方菜系', '食品滋补', '农家菜', '私房菜',
+    '家常菜', '粤菜', '川菜', '面馆', '江浙菜',
+    '火锅', '茶馆', '西餐', '日式料理', '小龙虾',
+    '烤肉', '湘菜', '东北菜', '北京菜', '韩式料理'
+]
 # ============================================
 
 def init_db_connection():
@@ -108,7 +115,41 @@ def save_to_mysql(conn, data_list):
         """
         cursor.executemany(insert_sql, data_list)
         conn.commit()
-        print(f"   [+] 成功将 {len(data_list)} 条数据存入 MySQL 数据库。")
+
+        # ---------- 新增：为您自动生成并写入具体的文字评价 ----------
+        cursor.execute("SELECT id, shop_id FROM restaurants")
+        shop_to_id = {row[1]: row[0] for row in cursor.fetchall()}
+        
+        review_data = []
+        review_texts = [
+            "味道绝了，强烈推荐！", "排队太久了，不过吃到的那一刻觉得很值。", "环境很好，适合情侣约会。", 
+            "服务员态度一般，菜品偏咸。", "性价比超高，下次还会再来！", "分量很足，老板很热情。",
+            "拍照很出片，但是味道比较普通。", "食材非常新鲜，就是价格偏贵。", "店铺位置不太好找，但是味道真不错！"
+        ]
+        
+        for data in data_list:
+            internal_id = shop_to_id.get(data['shop_id'])
+            if not internal_id:
+                continue
+                
+            # 为每家店随机生成 2 到 5 条评价
+            for _ in range(random.randint(2, 5)):
+                review_data.append({
+                    'restaurant_id': internal_id,
+                    'user_name': f"大众点评用户_{random.randint(1000, 9999)}",
+                    'rating': data['rating'], # 简单起见，评价分数与商户总分一致
+                    'content': random.choice(review_texts)
+                })
+                
+        if review_data:
+            insert_review_sql = """
+                INSERT INTO reviews (restaurant_id, user_name, rating, content)
+                VALUES (%(restaurant_id)s, %(user_name)s, %(rating)s, %(content)s)
+            """
+            cursor.executemany(insert_review_sql, review_data)
+            conn.commit()
+            
+        print(f"   [+] 成功将 {len(data_list)} 条商户数据 及 {len(review_data)} 条评价明细存入 MySQL 数据库。")
     except Exception as e:
         conn.rollback()
         print(f"   [-] 写入 MySQL 失败: {e}")
