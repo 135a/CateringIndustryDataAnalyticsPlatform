@@ -40,6 +40,10 @@ func SetupRouter() *gin.Engine {
 			statsGroup.GET("/map-points", api.MapPoints)                    // 地图坐标点
 		}
 
+		// ================= 商户明细检索路由 =================
+		// 分页查询商户列表 (支持排序与多条件筛选)
+		apiGroup.GET("/restaurants", api.GetRestaurants)
+
 		// ================= 用户相关路由 =================
 		userGroup := apiGroup.Group("/user")
 		{
